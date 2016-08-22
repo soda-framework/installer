@@ -1,0 +1,24 @@
+{
+    "name": "soda-framework/installer",
+    "description": "Soda application installer.",
+    "keywords": ["soda", "laravel"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Ryan Brereton-Canham",
+            "email": "ryzaar@hotmail.com"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Soda\\Installer\\": "src/"
+        }
+    },
+    "require": {
+        "symfony/console": "~2.3|~3.0",
+        "symfony/process": "~2.3|~3.0"
+    },
+    "bin": [
+        "soda"
+    ]
+}
