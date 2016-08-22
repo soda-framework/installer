@@ -70,7 +70,7 @@ class InstallSoda extends Command
         $composer = $this->findComposer();
 
         $process = new Process(implode(' && ', [
-            "$composer require soda-framework/cms:dev-master",
+            "$composer require soda-framework/cms",
         ]), $directory, null, null, null);
 
         if ('\\' !== DIRECTORY_SEPARATOR && file_exists('/dev/tty') && is_readable('/dev/tty')) {
