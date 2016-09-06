@@ -2,13 +2,14 @@
 
 namespace Soda\Installer;
 
-use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Process\Process;
+use Laravel\Installer\Console\NewCommand;
+use RuntimeException;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Process\Process;
 
-class InstallSoda extends Command
-{
+class InstallSoda extends NewCommand {
     protected $name;
     protected $directory;
 
@@ -17,83 +18,133 @@ class InstallSoda extends Command
      *
      * @return void
      */
-    protected function configure()
-    {
+    protected function configure() {
         $this
             ->setName('new')
             ->setDescription('Create a new Soda application.')
-            ->addArgument('name');
+            ->addArgument('name')
+            ->addOption('show-output', null, InputOption::VALUE_NONE, 'Shows the output of composer/artisan commands during installation')
+            ->addOption('dev', null, InputOption::VALUE_NONE, 'Installs the latest "development" release')
+            ->addOption('master', null, InputOption::VALUE_NONE, 'Installs the "master" release')
+            ->addOption('laravel-dev', null, InputOption::VALUE_NONE, 'Installs the latest "development" release of Laravel')
+            ->addOption('laravel-master', null, InputOption::VALUE_NONE, 'Installs the "master" release of Laravel');
     }
 
     /**
      * Execute the command.
      *
-     * @param  InputInterface  $input
-     * @param  OutputInterface  $output
+     * @param  InputInterface $input
+     * @param  OutputInterface $output
+     *
      * @return void
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
-    {
+    protected function execute(InputInterface $input, OutputInterface $output) {
         $this->name = $input->getArgument('name');
         $this->directory = getcwd() . '/' . $this->name;
 
-        $output->writeln('<info>Installing Soda...</info>');
+        $output->writeln('<bg=blue;fg=cyan;>                    </>');
+        $output->writeln('<bg=blue;fg=cyan;>   Soda Installer   </>');
+        $output->writeln('<bg=blue;fg=cyan;>                    </>');
 
-        $this->installLaravel($output);
-        $this->installSoda($output);
-        $this->addServiceProvider();
-        $this->finishSetup($output);
+        $this->installLaravel($input, $output);
+        $this->installSoda($input, $output);
+        $this->configureSoda($input, $output);
+        $this->migrateSoda($input, $output);
 
-        $output->writeln('<comment>Sweet! Soda has been installed</comment>');
+        $output->writeln('<bg=blue;fg=cyan;>                                     </>');
+        $output->writeln('<bg=blue;fg=cyan;>   Sweet! Soda has been installed!   </>');
+        $output->writeln('<bg=blue;fg=cyan;>                                     </>');
     }
 
-    protected function installLaravel(OutputInterface $output) {
-        $name = $this->name;
-        $directory = $this->directory;
-        $composer = $this->findComposer($directory);
-
-        $process = new Process(implode(' && ', [
-            "$composer create-project laravel/laravel $name 5.2.*",
-        ]), getcwd(), null, null, null);
-
-        if ('\\' !== DIRECTORY_SEPARATOR && file_exists('/dev/tty') && is_readable('/dev/tty')) {
-            $process->setTty(true);
+    protected function installLaravel(InputInterface $input, OutputInterface $output) {
+        if (!class_exists('ZipArchive')) {
+            throw new RuntimeException('The Zip PHP extension is not installed. Please install it and try again.');
         }
 
-        $process->run(function ($type, $line) use ($output) {
-            $output->write($line);
-        });
-    }
+        $this->verifyApplicationDoesntExist(
+            $directory = ($this->name) ? getcwd() . '/' . $this->name : getcwd(),
+            $output
+        );
 
-    protected function installSoda(OutputInterface $output) {
-        $directory = $this->directory;
+        $version = $this->getLaravelVersion($input);
+
+        $output->writeln('<fg=cyan;>Installing Laravel (' . $version . ')...</>');
+
+        $this->download($zipFile = $this->makeFilename(), $version)
+            ->extract($zipFile, $directory)
+            ->cleanUp($zipFile);
+
         $composer = $this->findComposer();
 
-        $process = new Process(implode(' && ', [
-            "$composer require soda-framework/cms",
-        ]), $directory, null, null, null);
+        $commands = $this->formatCommands($input, [
+            $composer . ' install --no-scripts --no-suggest ',
+            $composer . ' run-script post-root-package-install ',
+            $composer . ' run-script post-install-cmd',
+            $composer . ' run-script post-create-project-cmd',
+        ]);
 
-        if ('\\' !== DIRECTORY_SEPARATOR && file_exists('/dev/tty') && is_readable('/dev/tty')) {
-            $process->setTty(true);
-        }
+        $process = $this->buildProcess($commands, $directory);
+
+        $process->run(function ($type, $line) use ($output) {
+            $output->write($line);
+        });
+
+        $output->writeln('<fg=cyan;>Laravel installed.</>');
+    }
+
+    protected function installSoda(InputInterface $input, OutputInterface $output) {
+        $composer = $this->findComposer();
+
+        $output->writeln('<fg=cyan;>Pouring Soda...</>');
+
+        $version = $this->getSodaVersion($input);
+
+        $commands = $this->formatCommands($input, [
+            "$composer require soda-framework/cms$version",
+        ]);
+
+        $process = $this->buildProcess($commands, $this->directory);
 
         $process->run(function ($type, $line) use ($output) {
             $output->write($line);
         });
     }
 
-    protected function finishSetup(OutputInterface $output) {
+    protected function configureSoda(InputInterface $input, OutputInterface $output) {
         $directory = $this->directory;
         $artisan = $this->findArtisan($directory);
 
-        $process = new Process(implode(' && ', [
-            "$artisan vendor:publish",
-            "$artisan soda:setup",
-        ]), $directory, null, null, null);
+        $output->writeln('<fg=cyan;>Stirring...</>');
 
-        if ('\\' !== DIRECTORY_SEPARATOR && file_exists('/dev/tty') && is_readable('/dev/tty')) {
-            $process->setTty(true);
-        }
+        $this->addServiceProvider();
+
+        $commands = $this->formatCommands($input, [
+            "$artisan vendor:publish",
+            "$artisan session:table",
+            "$artisan optimize",
+        ]);
+
+        $commands[] = "$artisan soda:setup";
+
+        $process = $this->buildProcess($commands, $directory);
+
+        $process->run(function ($type, $line) use ($output) {
+            $output->write($line);
+        });
+    }
+
+    protected function migrateSoda(InputInterface $input, OutputInterface $output) {
+        $directory = $this->directory;
+        $artisan = $this->findArtisan($directory);
+
+        $output->writeln('<fg=cyan;>Garnishing...</>');
+
+        $commands = $this->formatCommands($input, [
+            "$artisan soda:migrate",
+            "$artisan soda:seed",
+        ]);
+
+        $process = $this->buildProcess($commands, $directory);
 
         $process->run(function ($type, $line) use ($output) {
             $output->write($line);
@@ -119,18 +170,64 @@ class InstallSoda extends Command
         }
     }
 
+    protected function formatCommands(InputInterface $input, array $commands) {
+        if ($input->getOption('no-ansi')) {
+            $commands = array_map(function ($value) {
+                return $value . ' --no-ansi';
+            }, $commands);
+        }
+
+        if (!$input->getOption('show-output')) {
+            $commands = array_map(function ($value) {
+                return $value . ' --quiet';
+            }, $commands);
+        }
+
+        if ($input->getOption('verbose')) {
+            $commands = array_map(function ($value) {
+                return $value . ' --verbose';
+            }, $commands);
+        }
+
+        return $commands;
+    }
+
+    protected function buildProcess(array $commands, $directory) {
+        $process = new Process(implode(' && ', $commands), $directory, null, null, null);
+
+        if ('\\' !== DIRECTORY_SEPARATOR && file_exists('/dev/tty') && is_readable('/dev/tty')) {
+            $process->setTty(true);
+        }
+
+        return $process;
+    }
+
+
     /**
-     * Get the composer command for the environment.
+     * Get the version that should be downloaded.
+     *
+     * @param  \Symfony\Component\Console\Input\InputInterface $input
      *
      * @return string
      */
-    protected function findComposer($directory = null)
-    {
-        if (file_exists(($directory ? $directory : getcwd()).'/composer.phar')) {
-            return '"'.PHP_BINARY.'" composer.phar';
+    protected function getLaravelVersion($input) {
+        if ($input->getOption('laravel-dev')) {
+            return 'develop';
         }
 
-        return 'composer';
+        if ($input->getOption('laravel-master')) {
+            return 'master';
+        }
+
+        return '5.2';
+    }
+
+    protected function getSodaVersion($input) {
+        if ($input->getOption('dev')) {
+            return ':dev-master';
+        }
+
+        return '';
     }
 
     /**
@@ -138,10 +235,9 @@ class InstallSoda extends Command
      *
      * @return string
      */
-    protected function findArtisan($directory = null)
-    {
-        if (file_exists(($directory ? $directory : getcwd()).'/artisan')) {
-            return '"'.PHP_BINARY.'" artisan';
+    protected function findArtisan($directory = null) {
+        if (file_exists(($directory ? $directory : getcwd()) . '/artisan')) {
+            return '"' . PHP_BINARY . '" artisan';
         }
 
         return 'php artisan';
