@@ -114,7 +114,7 @@ class InstallSoda extends NewCommand {
         $directory = $this->directory;
         $artisan = $this->findArtisan($directory);
 
-        $output->writeln('<fg=cyan;>Stirring...</>');
+        $output->writeln('<fg=cyan;>Caffeinating...</>');
 
         $this->addServiceProvider();
 
@@ -137,9 +137,10 @@ class InstallSoda extends NewCommand {
         $directory = $this->directory;
         $artisan = $this->findArtisan($directory);
 
-        $output->writeln('<fg=cyan;>Garnishing...</>');
+        $output->writeln('<fg=cyan;>Loading with sugar...</>');
 
         $commands = $this->formatCommands($input, [
+            "$artisan migrate",
             "$artisan soda:migrate",
             "$artisan soda:seed",
         ]);
