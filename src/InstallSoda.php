@@ -52,10 +52,10 @@ class InstallSoda extends NewCommand {
         $output->writeln('<bg=blue;fg=cyan;>   Soda Installer   </>');
         $output->writeln('<bg=blue;fg=cyan;>                    </>');
 
-        //$this->installLaravel($input, $output);
-        //$this->installSoda($input, $output);
-        //$this->configureSoda($input, $output);
-        //$this->migrateSoda($input, $output);
+        $this->installLaravel($input, $output);
+        $this->installSoda($input, $output);
+        $this->configureSoda($input, $output);
+        $this->migrateSoda($input, $output);
 
         $output->writeln('<bg=blue;fg=cyan;>                                     </>');
         $output->writeln('<bg=blue;fg=cyan;>   Sweet! Soda has been installed!   </>');
