@@ -7,6 +7,7 @@ use RuntimeException;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 
 class InstallSoda extends NewCommand {
@@ -27,7 +28,8 @@ class InstallSoda extends NewCommand {
             ->addOption('dev', null, InputOption::VALUE_NONE, 'Installs the latest "development" release')
             ->addOption('master', null, InputOption::VALUE_NONE, 'Installs the "master" release')
             ->addOption('laravel-dev', null, InputOption::VALUE_NONE, 'Installs the latest "development" release of Laravel')
-            ->addOption('laravel-master', null, InputOption::VALUE_NONE, 'Installs the "master" release of Laravel');
+            ->addOption('laravel-master', null, InputOption::VALUE_NONE, 'Installs the "master" release of Laravel')
+            ->addOption('mik', null, InputOption::VALUE_NONE, 'Additional setup for MIK deploys');
     }
 
     /**
@@ -40,16 +42,20 @@ class InstallSoda extends NewCommand {
      */
     protected function execute(InputInterface $input, OutputInterface $output) {
         $this->name = $input->getArgument('name');
-        $this->directory = getcwd() . '/' . $this->name;
+        $this->directory = ($this->name) ? getcwd() . '/' . $this->name : getcwd();
+
+        if ($input->getOption('mik')) {
+            $this->directory .= '/src';
+        }
 
         $output->writeln('<bg=blue;fg=cyan;>                    </>');
         $output->writeln('<bg=blue;fg=cyan;>   Soda Installer   </>');
         $output->writeln('<bg=blue;fg=cyan;>                    </>');
 
-        $this->installLaravel($input, $output);
-        $this->installSoda($input, $output);
-        $this->configureSoda($input, $output);
-        $this->migrateSoda($input, $output);
+        //$this->installLaravel($input, $output);
+        //$this->installSoda($input, $output);
+        //$this->configureSoda($input, $output);
+        //$this->migrateSoda($input, $output);
 
         $output->writeln('<bg=blue;fg=cyan;>                                     </>');
         $output->writeln('<bg=blue;fg=cyan;>   Sweet! Soda has been installed!   </>');
@@ -61,17 +67,14 @@ class InstallSoda extends NewCommand {
             throw new RuntimeException('The Zip PHP extension is not installed. Please install it and try again.');
         }
 
-        $this->verifyApplicationDoesntExist(
-            $directory = ($this->name) ? getcwd() . '/' . $this->name : getcwd(),
-            $output
-        );
+        $this->verifyApplicationDoesntExist($this->directory, $output);
 
         $version = $this->getLaravelVersion($input);
 
         $output->writeln('<fg=cyan;>Installing Laravel (' . $version . ')...</>');
 
         $this->download($zipFile = $this->makeFilename(), $version)
-            ->extract($zipFile, $directory)
+            ->extract($zipFile, $this->directory)
             ->cleanUp($zipFile);
 
         $composer = $this->findComposer();
@@ -83,7 +86,7 @@ class InstallSoda extends NewCommand {
             $composer . ' run-script post-create-project-cmd',
         ]);
 
-        $process = $this->buildProcess($commands, $directory);
+        $process = $this->buildProcess($commands, $this->directory);
 
         $process->run(function ($type, $line) use ($output) {
             $output->write($line);
@@ -123,6 +126,11 @@ class InstallSoda extends NewCommand {
             "$artisan session:table",
             "$artisan optimize",
         ]);
+
+        if ($input->getOption('mik')) {
+            $fs = new Filesystem();
+            $fs->dumpFile($this->directory . '/env.erb', "<% @application[:environment_variables].each do |key, value| -%>\r\n<%= key.upcase %>=<%= value %>\r\n<% end %>");
+        }
 
         $commands[] = "$artisan soda:setup";
 
