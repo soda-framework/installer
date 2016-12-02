@@ -169,11 +169,7 @@ class InstallSoda extends NewCommand {
             $old_provider = 'App\Providers\RouteServiceProvider::class,';
             $provider_replacement = "$old_provider\n\n        Soda\\Cms\\Providers\\SodaServiceProvider::class,";
 
-            $old_facade = "'View' => Illuminate\\Support\\Facades\\View::class,";
-            $facade_replacement = "$old_facade\n\n        'Soda' => Soda\\Facades\\Soda::class,";
-
             $contents = str_replace($old_provider, $provider_replacement, $contents);
-            $contents = str_replace($old_facade, $facade_replacement, $contents);
 
             file_put_contents($application_config, $contents);
         }
@@ -235,8 +231,11 @@ class InstallSoda extends NewCommand {
         if ($input->getOption('dev')) {
             return ':dev-master';
         }
+        if ($this->getLaravelVersion($input) === '5.2') {
+            return ':^0.3';
+        }
 
-        return '';
+        return '^0.4';
     }
 
     /**
