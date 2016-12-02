@@ -224,7 +224,7 @@ class InstallSoda extends NewCommand {
             return 'master';
         }
 
-        return '5.2';
+        return '5.3';
     }
 
     protected function getSodaVersion($input) {
@@ -235,7 +235,7 @@ class InstallSoda extends NewCommand {
             return ':^0.3';
         }
 
-        return '^0.4';
+        return ':^0.4';
     }
 
     /**
