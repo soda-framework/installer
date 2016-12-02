@@ -207,6 +207,35 @@ class InstallSoda extends NewCommand {
         return $process;
     }
 
+    /**
+     * Download the temporary Zip to the given file.
+     *
+     * @param  string  $zipFile
+     * @param  string  $version
+     * @return $this
+     */
+    protected function download($zipFile, $version = 'master')
+    {
+        switch ($version) {
+            case 'develop':
+                $filename = 'latest-develop.zip';
+                break;
+            case '5.3':
+            case 'master':
+                $filename = 'latest.zip';
+                break;
+            case '5.2':
+                $filename = 'latest-52.zip';
+                break;
+        }
+
+        $response = (new Client)->get('http://cabinet.laravel.com/'.$filename);
+
+        file_put_contents($zipFile, $response->getBody());
+
+        return $this;
+    }
+
 
     /**
      * Get the version that should be downloaded.
