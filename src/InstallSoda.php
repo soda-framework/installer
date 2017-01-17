@@ -2,15 +2,16 @@
 
 namespace Soda\Installer;
 
-use Laravel\Installer\Console\NewCommand;
 use RuntimeException;
-use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
+use Laravel\Installer\Console\NewCommand;
+use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
 
-class InstallSoda extends NewCommand {
+class InstallSoda extends NewCommand
+{
     protected $name;
     protected $directory;
 
@@ -19,7 +20,8 @@ class InstallSoda extends NewCommand {
      *
      * @return void
      */
-    protected function configure() {
+    protected function configure()
+    {
         $this
             ->setName('new')
             ->setDescription('Create a new Soda application.')
@@ -40,9 +42,10 @@ class InstallSoda extends NewCommand {
      *
      * @return void
      */
-    protected function execute(InputInterface $input, OutputInterface $output) {
+    protected function execute(InputInterface $input, OutputInterface $output)
+    {
         $this->name = $input->getArgument('name');
-        $this->directory = ($this->name) ? getcwd() . '/' . $this->name : getcwd();
+        $this->directory = ($this->name) ? getcwd().'/'.$this->name : getcwd();
 
         if ($input->getOption('mik')) {
             $this->directory .= '/src';
@@ -62,8 +65,9 @@ class InstallSoda extends NewCommand {
         $output->writeln('<bg=blue;fg=cyan;>                                     </>');
     }
 
-    protected function installLaravel(InputInterface $input, OutputInterface $output) {
-        if (!class_exists('ZipArchive')) {
+    protected function installLaravel(InputInterface $input, OutputInterface $output)
+    {
+        if (! class_exists('ZipArchive')) {
             throw new RuntimeException('The Zip PHP extension is not installed. Please install it and try again.');
         }
 
@@ -71,7 +75,7 @@ class InstallSoda extends NewCommand {
 
         $version = $this->getLaravelVersion($input);
 
-        $output->writeln('<fg=cyan;>Installing Laravel (' . $version . ')...</>');
+        $output->writeln('<fg=cyan;>Installing Laravel ('.$version.')...</>');
 
         $this->download($zipFile = $this->makeFilename(), $version)
             ->extract($zipFile, $this->directory)
@@ -80,10 +84,10 @@ class InstallSoda extends NewCommand {
         $composer = $this->findComposer();
 
         $commands = $this->formatCommands($input, [
-            $composer . ' install --no-scripts --no-suggest ',
-            $composer . ' run-script post-root-package-install ',
-            $composer . ' run-script post-install-cmd',
-            $composer . ' run-script post-create-project-cmd',
+            $composer.' install --no-scripts --no-suggest ',
+            $composer.' run-script post-root-package-install ',
+            $composer.' run-script post-install-cmd',
+            $composer.' run-script post-create-project-cmd',
         ]);
 
         $process = $this->buildProcess($commands, $this->directory);
@@ -95,7 +99,8 @@ class InstallSoda extends NewCommand {
         $output->writeln('<fg=cyan;>Laravel installed.</>');
     }
 
-    protected function installSoda(InputInterface $input, OutputInterface $output) {
+    protected function installSoda(InputInterface $input, OutputInterface $output)
+    {
         $composer = $this->findComposer();
 
         $output->writeln('<fg=cyan;>Pouring Soda...</>');
@@ -113,7 +118,8 @@ class InstallSoda extends NewCommand {
         });
     }
 
-    protected function configureSoda(InputInterface $input, OutputInterface $output) {
+    protected function configureSoda(InputInterface $input, OutputInterface $output)
+    {
         $directory = $this->directory;
         $artisan = $this->findArtisan($directory);
 
@@ -129,7 +135,7 @@ class InstallSoda extends NewCommand {
 
         if ($input->getOption('mik')) {
             $fs = new Filesystem();
-            $fs->dumpFile($this->directory . '/env.erb', "<% @application[:environment_variables].each do |key, value| -%>\r\n<%= key.upcase %>=<%= value %>\r\n<% end %>");
+            $fs->dumpFile($this->directory.'/env.erb', "<% @application[:environment_variables].each do |key, value| -%>\r\n<%= key.upcase %>=<%= value %>\r\n<% end %>");
         }
 
         $commands[] = "$artisan soda:setup";
@@ -141,7 +147,8 @@ class InstallSoda extends NewCommand {
         });
     }
 
-    protected function migrateSoda(InputInterface $input, OutputInterface $output) {
+    protected function migrateSoda(InputInterface $input, OutputInterface $output)
+    {
         $directory = $this->directory;
         $artisan = $this->findArtisan($directory);
 
@@ -160,8 +167,9 @@ class InstallSoda extends NewCommand {
         });
     }
 
-    protected function addServiceProvider() {
-        $application_config = $this->directory . '/config/app.php';
+    protected function addServiceProvider()
+    {
+        $application_config = $this->directory.'/config/app.php';
 
         if (file_exists($application_config)) {
             $contents = file_get_contents($application_config);
@@ -175,29 +183,31 @@ class InstallSoda extends NewCommand {
         }
     }
 
-    protected function formatCommands(InputInterface $input, array $commands) {
+    protected function formatCommands(InputInterface $input, array $commands)
+    {
         if ($input->getOption('no-ansi')) {
             $commands = array_map(function ($value) {
-                return $value . ' --no-ansi';
+                return $value.' --no-ansi';
             }, $commands);
         }
 
-        if (!$input->getOption('show-output')) {
+        if (! $input->getOption('show-output')) {
             $commands = array_map(function ($value) {
-                return $value . ' --quiet';
+                return $value.' --quiet';
             }, $commands);
         }
 
         if ($input->getOption('verbose')) {
             $commands = array_map(function ($value) {
-                return $value . ' --verbose';
+                return $value.' --verbose';
             }, $commands);
         }
 
         return $commands;
     }
 
-    protected function buildProcess(array $commands, $directory) {
+    protected function buildProcess(array $commands, $directory)
+    {
         $process = new Process(implode(' && ', $commands), $directory, null, null, null);
 
         if ('\\' !== DIRECTORY_SEPARATOR && file_exists('/dev/tty') && is_readable('/dev/tty')) {
@@ -236,7 +246,6 @@ class InstallSoda extends NewCommand {
         return $this;
     }
 
-
     /**
      * Get the version that should be downloaded.
      *
@@ -244,7 +253,8 @@ class InstallSoda extends NewCommand {
      *
      * @return string
      */
-    protected function getLaravelVersion($input) {
+    protected function getLaravelVersion($input)
+    {
         if ($input->getOption('laravel-dev')) {
             return 'develop';
         }
@@ -256,7 +266,8 @@ class InstallSoda extends NewCommand {
         return '5.3';
     }
 
-    protected function getSodaVersion($input) {
+    protected function getSodaVersion($input)
+    {
         if ($input->getOption('dev')) {
             return ':dev-master';
         }
@@ -272,9 +283,10 @@ class InstallSoda extends NewCommand {
      *
      * @return string
      */
-    protected function findArtisan($directory = null) {
-        if (file_exists(($directory ? $directory : getcwd()) . '/artisan')) {
-            return '"' . PHP_BINARY . '" artisan';
+    protected function findArtisan($directory = null)
+    {
+        if (file_exists(($directory ? $directory : getcwd()).'/artisan')) {
+            return '"'.PHP_BINARY.'" artisan';
         }
 
         return 'php artisan';
