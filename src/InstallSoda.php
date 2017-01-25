@@ -4,13 +4,13 @@ namespace Soda\Installer;
 
 use Composer\Semver\VersionParser;
 use GuzzleHttp\Client;
-use Laravel\Installer\Console\NewCommand;
 use RuntimeException;
-use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
+use Laravel\Installer\Console\NewCommand;
+use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Output\OutputInterface;
 
 class InstallSoda extends NewCommand
 {
@@ -66,7 +66,7 @@ class InstallSoda extends NewCommand
 
     protected function installLaravel(InputInterface $input, OutputInterface $output)
     {
-        if (!class_exists('ZipArchive')) {
+        if (! class_exists('ZipArchive')) {
             throw new RuntimeException('The Zip PHP extension is not installed. Please install it and try again.');
         }
 
@@ -190,7 +190,7 @@ class InstallSoda extends NewCommand
             }, $commands);
         }
 
-        if (!$input->getOption('show-output')) {
+        if (! $input->getOption('show-output')) {
             $commands = array_map(function ($value) {
                 return $value.' --quiet';
             }, $commands);
