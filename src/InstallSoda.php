@@ -5,14 +5,15 @@ namespace Soda\Installer;
 use Composer\Semver\VersionParser;
 use GuzzleHttp\Client;
 use RuntimeException;
-use Symfony\Component\Process\Process;
-use Laravel\Installer\Console\NewCommand;
-use Symfony\Component\Filesystem\Filesystem;
-use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Process\Process;
+use ZipArchive;
 
-class InstallSoda extends NewCommand
+class InstallSoda extends Command
 {
     protected $name;
     protected $directory;
@@ -29,7 +30,7 @@ class InstallSoda extends NewCommand
             ->setDescription('Create a new Soda application.')
             ->addArgument('name')
             ->addOption('show-output', null, InputOption::VALUE_NONE, 'Shows the output of composer/artisan commands during installation')
-            ->addOption('release', 'r', InputOption::VALUE_OPTIONAL, 'Specify the version of Soda to install', '^0.6')
+            ->addOption('version', null, InputOption::VALUE_OPTIONAL, 'Specify the version of Soda to install', '^0.6')
             ->addOption('mik', null, InputOption::VALUE_NONE, 'Additional setup for MIK deploys');
     }
 
@@ -66,7 +67,7 @@ class InstallSoda extends NewCommand
 
     protected function installLaravel(InputInterface $input, OutputInterface $output)
     {
-        if (! class_exists('ZipArchive')) {
+        if (!class_exists('ZipArchive')) {
             throw new RuntimeException('The Zip PHP extension is not installed. Please install it and try again.');
         }
 
@@ -124,7 +125,7 @@ class InstallSoda extends NewCommand
 
         $output->writeln('<fg=cyan;>Caffeinating...</>');
 
-        $this->addServiceProvider();
+        $this->addServiceProvider($input);
 
         $commands = $this->formatCommands($input, [
             "$artisan vendor:publish",
@@ -166,7 +167,7 @@ class InstallSoda extends NewCommand
         });
     }
 
-    protected function addServiceProvider()
+    protected function addServiceProvider(InputInterface $input)
     {
         $application_config = $this->directory.'/config/app.php';
 
@@ -174,11 +175,42 @@ class InstallSoda extends NewCommand
             $contents = file_get_contents($application_config);
 
             $old_provider = 'App\Providers\RouteServiceProvider::class,';
-            $provider_replacement = "$old_provider\n\n        Soda\\Cms\\Providers\\SodaServiceProvider::class,";
+            $provider_replacement = "$old_provider\n\n        {$this->getServiceProviderName($input)},";
 
             $contents = str_replace($old_provider, $provider_replacement, $contents);
 
             file_put_contents($application_config, $contents);
+        }
+    }
+
+    protected function getServiceProviderName(InputInterface $input)
+    {
+        $versionParse = new VersionParser;
+        $requestedVersion = (new VersionParser)->parseConstraints($input->getOption('release'));
+
+        $providerNamespaces = [
+            'Soda\\Cms\\SodaServiceProvider::class' => [
+                '^0.6',
+                'dev-release/0.6',
+                'dev-master',
+                'dev-develop',
+            ],
+            'Soda\\Cms\\Providers\\SodaServiceProvider::class' => [
+                '^0.5',
+                '^0.4',
+                '^0.3',
+                '^0.2',
+                '^0.1',
+                '^0.0',
+            ],
+        ];
+
+        foreach ($providerNamespaces as $namespace => $sodaConstraints) {
+            foreach ($sodaConstraints as $sodaConstraint) {
+                if ($versionParse->parseConstraints($sodaConstraint)->matches($requestedVersion)) {
+                    return $namespace;
+                }
+            }
         }
     }
 
@@ -190,7 +222,7 @@ class InstallSoda extends NewCommand
             }, $commands);
         }
 
-        if (! $input->getOption('show-output')) {
+        if (!$input->getOption('show-output')) {
             $commands = array_map(function ($value) {
                 return $value.' --quiet';
             }, $commands);
@@ -217,6 +249,45 @@ class InstallSoda extends NewCommand
     }
 
     /**
+     * Verify that the application does not already exist.
+     *
+     * @param  string         $directory
+     * @param OutputInterface $output
+     */
+    protected function verifyApplicationDoesntExist($directory, OutputInterface $output)
+    {
+        if ((is_dir($directory) || is_file($directory)) && $directory != getcwd()) {
+            throw new RuntimeException('Application already exists!');
+        }
+    }
+
+    /**
+     * Clean-up the Zip file.
+     *
+     * @param  string $zipFile
+     *
+     * @return $this
+     */
+    protected function cleanUp($zipFile)
+    {
+        @chmod($zipFile, 0777);
+
+        @unlink($zipFile);
+
+        return $this;
+    }
+
+    /**
+     * Generate a random temporary filename.
+     *
+     * @return string
+     */
+    protected function makeFilename()
+    {
+        return getcwd().'/laravel_'.md5(time().uniqid()).'.zip';
+    }
+
+    /**
      * Download the temporary Zip to the given file.
      *
      * @param  string $zipFile
@@ -229,7 +300,7 @@ class InstallSoda extends NewCommand
         switch ($version) {
             case '5.4':
             case 'master':
-                $filename = 'v5.4.0.zip';
+                $filename = 'v5.4.3.zip';
                 break;
             case '5.3':
                 $filename = 'v5.3.16.zip';
@@ -242,6 +313,35 @@ class InstallSoda extends NewCommand
         $response = (new Client)->get('https://github.com/laravel/laravel/archive/'.$filename);
 
         file_put_contents($zipFile, $response->getBody());
+
+        return $this;
+    }
+
+    /**
+     * Extract the zip file into the given directory.
+     *
+     * @param  string $zipFile
+     * @param  string $directory
+     *
+     * @return $this
+     */
+    protected function extract($zipFile, $directory)
+    {
+        $archive = new ZipArchive;
+
+        $archive->open($zipFile);
+
+        $dirName = $archive->statIndex(0)['name'];
+
+        $archive->extractTo(getcwd());
+
+        $archive->close();
+
+        if (!is_dir(dirname($directory))) {
+            mkdir(dirname($directory), 0777, true);
+        }
+
+        rename(getcwd().'/'.$dirName, $directory);
 
         return $this;
     }
@@ -262,6 +362,7 @@ class InstallSoda extends NewCommand
         $laravelVersions = [
             '5.4' => [
                 '^0.6',
+                'dev-release/0.6',
                 'dev-master',
                 'dev-develop',
             ],
@@ -290,7 +391,27 @@ class InstallSoda extends NewCommand
 
     protected function getSodaVersion($input)
     {
-        return $input->getOption('release');
+        $release = $input->getOption('release');
+
+        if ($release == '^0.6') {
+            $release = 'dev-release/0.6';
+        }
+
+        return $release;
+    }
+
+    /**
+     * Get the composer command for the environment.
+     *
+     * @return string
+     */
+    protected function findComposer()
+    {
+        if (file_exists(getcwd().'/composer.phar')) {
+            return '"'.PHP_BINARY.'" composer.phar';
+        }
+
+        return 'composer';
     }
 
     /**
