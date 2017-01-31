@@ -30,7 +30,7 @@ class InstallSoda extends Command
             ->setDescription('Create a new Soda application.')
             ->addArgument('name')
             ->addOption('show-output', null, InputOption::VALUE_NONE, 'Shows the output of composer/artisan commands during installation')
-            ->addOption('version', null, InputOption::VALUE_OPTIONAL, 'Specify the version of Soda to install', '^0.6')
+            ->addOption('release', 'r', InputOption::VALUE_OPTIONAL, 'Specify the version of Soda to install', '^0.6')
             ->addOption('mik', null, InputOption::VALUE_NONE, 'Additional setup for MIK deploys');
     }
 
