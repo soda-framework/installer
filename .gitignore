@@ -1,3 +1,9 @@
-/vendor
-.DS_Store
 .idea
+.idea/**
+
+/vendor
+/node_modules
+
+.php_cs.cache
+.DS_Store
+Thumbs.db

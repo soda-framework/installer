@@ -1,0 +1,19 @@
+# Autodetect text files
+* text=auto
+
+# ...Unless the name matches the following
+# overriding patterns
+
+# Definitively text files
+*.txt text
+*.c text
+*.h text
+
+# Ensure those won't be messed up with
+*.jpg binary
+*.data binary
+
+.editorconfig export-ignore
+.gitattributes export-ignore
+.gitignore export-ignore
+.php_cs export-ignore
