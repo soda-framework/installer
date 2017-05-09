@@ -2,16 +2,15 @@
 
 namespace Soda\Installer;
 
-use ZipArchive;
-use RuntimeException;
-use GuzzleHttp\Client;
 use Composer\Semver\VersionParser;
-use Symfony\Component\Process\Process;
-use Symfony\Component\Filesystem\Filesystem;
+use GuzzleHttp\Client;
+use RuntimeException;
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Process\Process;
+use ZipArchive;
 
 class InstallSoda extends Command
 {
@@ -67,7 +66,7 @@ class InstallSoda extends Command
 
     protected function installLaravel(InputInterface $input, OutputInterface $output)
     {
-        if (! class_exists('ZipArchive')) {
+        if (!class_exists('ZipArchive')) {
             throw new RuntimeException('The Zip PHP extension is not installed. Please install it and try again.');
         }
 
@@ -133,11 +132,6 @@ class InstallSoda extends Command
             "$artisan optimize",
         ]);
 
-        if ($input->getOption('mik')) {
-            $fs = new Filesystem();
-            $fs->dumpFile($this->directory.'/env.erb', "<% @application[:environment_variables].each do |key, value| -%>\r\n<%= key.upcase %>=<%= value %>\r\n<% end %>");
-        }
-
         $commands[] = "$artisan soda:setup";
 
         $process = $this->buildProcess($commands, $directory);
@@ -149,18 +143,10 @@ class InstallSoda extends Command
 
     protected function migrateSoda(InputInterface $input, OutputInterface $output)
     {
-        $directory = $this->directory;
-        $artisan = $this->findArtisan($directory);
-
         $output->writeln('<fg=cyan;>Loading with sugar...</>');
 
-        $commands = $this->formatCommands($input, [
-            "$artisan migrate",
-            "$artisan soda:migrate",
-            "$artisan soda:seed",
-        ]);
-
-        $process = $this->buildProcess($commands, $directory);
+        $commands = $this->formatCommands($input, $this->getSetupCommands($input));
+        $process = $this->buildProcess($commands, $this->directory);
 
         $process->run(function ($type, $line) use ($output) {
             $output->write($line);
@@ -189,12 +175,14 @@ class InstallSoda extends Command
         $requestedVersion = (new VersionParser)->parseConstraints($input->getOption('release'));
 
         $providerNamespaces = [
-            'Soda\\Cms\\SodaServiceProvider::class' => [
+            /*'Soda\\Cms\\SodaServiceProvider::class' => [
+                '^0.7',
+                'dev-release/0.7',
                 '^0.6',
                 'dev-release/0.6',
                 'dev-master',
                 'dev-develop',
-            ],
+            ],*/
             'Soda\\Cms\\Providers\\SodaServiceProvider::class' => [
                 '^0.5',
                 '^0.4',
@@ -212,6 +200,36 @@ class InstallSoda extends Command
                 }
             }
         }
+
+        // Default namespace
+        return 'Soda\\Cms\\SodaServiceProvider::class';
+    }
+
+    protected function getSetupCommands(InputInterface $input)
+    {
+        $versionParse = new VersionParser;
+        $requestedVersion = (new VersionParser)->parseConstraints($input->getOption('release'));
+        $artisan = $this->findArtisan($this->directory);
+
+        $versionCommands = [
+            '<0.7' => [
+                "$artisan migrate",
+                "$artisan soda:migrate",
+                "$artisan soda:seed",
+            ],
+        ];
+
+        foreach ($versionCommands as $sodaVersion => $commands) {
+            if ($versionParse->parseConstraints($sodaVersion)->matches($requestedVersion)) {
+                return $commands;
+            }
+        }
+
+        // Default namespace
+        return [
+            "$artisan migrate",
+            "$artisan soda:install",
+        ];
     }
 
     protected function formatCommands(InputInterface $input, array $commands)
@@ -222,7 +240,7 @@ class InstallSoda extends Command
             }, $commands);
         }
 
-        if (! $input->getOption('show-output')) {
+        if (!$input->getOption('show-output')) {
             $commands = array_map(function ($value) {
                 return $value.' --quiet';
             }, $commands);
@@ -298,15 +316,14 @@ class InstallSoda extends Command
     protected function download($zipFile, $version = 'master')
     {
         switch ($version) {
-            case '5.4':
-            case 'master':
-                $filename = 'v5.4.3.zip';
+            case '5.2':
+                $filename = 'v5.2.31.zip';
                 break;
             case '5.3':
-                $filename = 'v5.3.16.zip';
+                $filename = 'v5.3.30.zip';
                 break;
-            case '5.2':
-                $filename = 'v5.2.29.zip';
+            default:
+                $filename = 'v5.4.21.zip';
                 break;
         }
 
@@ -337,7 +354,7 @@ class InstallSoda extends Command
 
         $archive->close();
 
-        if (! is_dir(dirname($directory))) {
+        if (!is_dir(dirname($directory))) {
             mkdir(dirname($directory), 0777, true);
         }
 
@@ -360,12 +377,14 @@ class InstallSoda extends Command
         $requestedVersion = (new VersionParser)->parseConstraints($input->getOption('release'));
 
         $laravelVersions = [
-            '5.4' => [
+            /*'5.4' => [
+                '^0.7',
                 '^0.6',
+                'dev-release/0.7',
                 'dev-release/0.6',
                 'dev-master',
                 'dev-develop',
-            ],
+            ],*/
             '5.3' => [
                 '^0.5',
                 '^0.4',
@@ -386,18 +405,12 @@ class InstallSoda extends Command
             }
         }
 
-        throw new \Exception('Could not determine appropriate Laravel version for Soda constraint '.$input->getOption('release'));
+        return '5.4';
     }
 
     protected function getSodaVersion($input)
     {
-        $release = $input->getOption('release');
-
-        if ($release == '^0.6') {
-            $release = 'dev-release/0.6';
-        }
-
-        return $release;
+        return $input->getOption('release');
     }
 
     /**
