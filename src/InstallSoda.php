@@ -29,7 +29,7 @@ class InstallSoda extends Command
             ->setDescription('Create a new Soda application.')
             ->addArgument('name')
             ->addOption('show-output', null, InputOption::VALUE_NONE, 'Shows the output of composer/artisan commands during installation')
-            ->addOption('release', 'r', InputOption::VALUE_OPTIONAL, 'Specify the version of Soda to install', '^0.6')
+            ->addOption('release', 'r', InputOption::VALUE_OPTIONAL, 'Specify the version of Soda to install', '^0.8')
             ->addOption('mik', null, InputOption::VALUE_NONE, 'Additional setup for MIK deploys');
     }
 
@@ -175,14 +175,6 @@ class InstallSoda extends Command
         $requestedVersion = (new VersionParser)->parseConstraints($input->getOption('release'));
 
         $providerNamespaces = [
-            /*'Soda\\Cms\\SodaServiceProvider::class' => [
-                '^0.7',
-                'dev-release/0.7',
-                '^0.6',
-                'dev-release/0.6',
-                'dev-master',
-                'dev-develop',
-            ],*/
             'Soda\\Cms\\Providers\\SodaServiceProvider::class' => [
                 '^0.5',
                 '^0.4',
@@ -323,7 +315,7 @@ class InstallSoda extends Command
                 $filename = 'v5.3.30.zip';
                 break;
             default:
-                $filename = 'v5.4.21.zip';
+                $filename = 'v5.4.30.zip';
                 break;
         }
 
@@ -378,8 +370,10 @@ class InstallSoda extends Command
 
         $laravelVersions = [
             /*'5.4' => [
+                '^0.8',
                 '^0.7',
                 '^0.6',
+                'dev-release/0.8',
                 'dev-release/0.7',
                 'dev-release/0.6',
                 'dev-master',
