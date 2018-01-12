@@ -2,46 +2,82 @@
 
 namespace Soda\Installer;
 
+use Composer\Cache;
 use Composer\DependencyResolver\Pool;
 use Composer\Factory;
 use Composer\IO\ConsoleIO;
 use Composer\Json\JsonValidationException;
 use Composer\Package\Package;
-use Composer\Package\RootPackageInterface;
 use Composer\Repository\CompositeRepository;
-use Composer\Repository\RepositoryManager;
 use Composer\Semver\Constraint\Constraint;
 use Composer\Semver\Constraint\ConstraintInterface;
 use Composer\Util\ErrorHandler;
 use InvalidArgumentException;
-use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-class VersionChecker extends Application
+class VersionChecker
 {
     /** @var \Composer\Composer */
     private $composer;
+    private $cache;
 
     const PACKAGE_NAME = 'soda-framework/installer';
 
+    public function __construct(ConsoleIO $io, Cache $cache = null)
+    {
+        ErrorHandler::register($io);
+        $this->registerComposer($io);
+        $this->cache = $cache;
+
+        if($cache) {
+            $cache->gc(86400, 1024);
+        }
+    }
+
     /**
-     * @param InputInterface $input  An Input instance
+     * @param InputInterface  $input  An Input instance
      * @param OutputInterface $output An Output instance
      *
      * @return int 0 if everything went fine, or an error code
      */
-    public function doRun(InputInterface $input, OutputInterface $output)
+    public function run(InputInterface $input, OutputInterface $output)
     {
-        $io = new ConsoleIO($input, $output, $this->getHelperSet());
-        ErrorHandler::register($io);
-        $this->registerComposer($io);
+        foreach ($this->composer->getRepositoryManager()->getLocalRepository()->getPackages() as $package) {
+            if (static::PACKAGE_NAME === $package->getName()) {
+                $installerPackage = $package;
+            }
+        }
 
-        $this->checkVersions();
+        if (! isset($installerPackage)) {
+            $output->writeln('\n');
+            $output->writeln('<bg=red;fg=white;>Soda Installer not detected in global composer.json.</>');
+            $output->writeLn('<bg=red;fg=white;>Make sure you install with </><bg=red;fg=white;options=underscore>composer global require ' . static::PACKAGE_NAME . '</>');
 
-        die();
+            return;
+        }
 
-        return parent::doRun($input, $output);
+        $currentVersion = $installerPackage->getPrettyVersion();
+        $latestVersion = $this->cache ? $this->cache->read('version') : false;
+
+        if(!$latestVersion) {
+            if ($latestInstallerPackage = $this->getMostRecent($installerPackage->getName(), new Constraint('>', $installerPackage->getVersion()))) {
+                $latestVersion = $latestInstallerPackage->getPrettyVersion();
+
+                if($this->cache) {
+                    $this->cache->write('version', $latestVersion);
+                }
+            }
+        }
+
+        if(version_compare($latestVersion, $currentVersion) == 1) {
+            $output->writeLn('<bg=red;fg=white;>Your version of Soda Installer is out of date!</>');
+            $output->writeLn('<bg=red;fg=white;>Please update with </><bg=red;fg=white;options=underscore>composer global update ' . static::PACKAGE_NAME . '</>');
+            $output->writeLn('Your version: <options=underscore>' . $currentVersion . '</>');
+            $output->writeLn('Current version: <options=underscore>' . $latestVersion . '</>');
+        }
+
+        return;
     }
 
     /**
@@ -53,9 +89,9 @@ class VersionChecker extends Application
      */
     public function registerComposer(ConsoleIO $io)
     {
-        if ($this->composer === NULL) {
+        if ($this->composer === null) {
             try {
-                $this->composer = Factory::createGlobal($io, FALSE);
+                $this->composer = Factory::createGlobal($io, false);
             } catch (InvalidArgumentException $e) {
                 $io->writeError($e->getMessage());
                 exit(1);
@@ -67,28 +103,6 @@ class VersionChecker extends Application
         }
 
         return $this->composer;
-    }
-
-    private function checkVersions()
-    {
-        foreach ($this->composer->getRepositoryManager()->getLocalRepository()->getPackages() as $package) {
-            if (static::PACKAGE_NAME === $package->getName()) {
-                $installerPackage = $package;
-            }
-        }
-
-        if(!isset($installerPackage)) {
-            // Not installed globally;
-            return;
-        }
-
-
-        $currentVersion = $installerPackage->getPrettyVersion();
-        var_dump($currentVersion);
-        $latestInstallerPackage = $this->getMostRecent($installerPackage->getName(), new Constraint('>', $installerPackage->getVersion()));
-        var_dump($latestInstallerPackage);
-
-        die();
     }
 
     /**
@@ -123,7 +137,7 @@ class VersionChecker extends Application
 
         foreach ($pool->whatProvides($packageName, $constraint) as $package) {
             if (($package->getName() == $packageName)
-                and ( ! $latest or version_compare($package->getVersion(), $latest->getVersion())==1)) {
+                and (! $latest or version_compare($package->getVersion(), $latest->getVersion()) == 1)) {
                 $latest = $package;
             }
         }
