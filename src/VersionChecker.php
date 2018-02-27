@@ -68,6 +68,8 @@ class VersionChecker
                 if ($this->cache) {
                     $this->cache->write('version', $latestVersion);
                 }
+            } else {
+                $this->cache->write('version', $currentVersion);
             }
         }
 
