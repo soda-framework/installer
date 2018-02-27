@@ -30,7 +30,7 @@ class VersionChecker
         $this->registerComposer($io);
         $this->cache = $cache;
 
-        if($cache) {
+        if ($cache) {
             $cache->gc(86400, 1024);
         }
     }
@@ -40,6 +40,7 @@ class VersionChecker
      * @param OutputInterface $output An Output instance
      *
      * @return int 0 if everything went fine, or an error code
+     * @throws \ErrorException
      */
     public function run(InputInterface $input, OutputInterface $output)
     {
@@ -60,17 +61,17 @@ class VersionChecker
         $currentVersion = $installerPackage->getPrettyVersion();
         $latestVersion = $this->cache ? $this->cache->read('version') : false;
 
-        if(!$latestVersion) {
+        if (! $latestVersion) {
             if ($latestInstallerPackage = $this->getMostRecent($installerPackage->getName(), new Constraint('>', $installerPackage->getVersion()))) {
                 $latestVersion = $latestInstallerPackage->getPrettyVersion();
 
-                if($this->cache) {
+                if ($this->cache) {
                     $this->cache->write('version', $latestVersion);
                 }
             }
         }
 
-        if(version_compare($latestVersion, $currentVersion) == 1) {
+        if (version_compare($latestVersion, $currentVersion) == 1) {
             $output->writeLn('<bg=red;fg=white;>Your version of Soda Installer is out of date!</>');
             $output->writeLn('<bg=red;fg=white;>Please update with </><bg=red;fg=white;options=underscore>composer global update ' . static::PACKAGE_NAME . '</>');
             $output->writeLn('Your version: <options=underscore>' . $currentVersion . '</>');
