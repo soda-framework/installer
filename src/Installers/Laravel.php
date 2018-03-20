@@ -25,12 +25,30 @@ class Laravel extends AbstractInstaller
 
         $composer = $this->findComposer();
 
-        $this->runCommands($this->formatCommands([
-            $composer . ' install --no-scripts --no-suggest ',
-            $composer . ' run-script post-root-package-install ',
-            $composer . ' run-script post-install-cmd',
-            $composer . ' run-script post-create-project-cmd',
-        ]));
+        switch ($version) {
+            case '5.0':
+            case '5.1':
+            case '5.2':
+            case '5.3':
+            case '5.4':
+                $commands = [
+                    $composer . ' install --no-scripts --no-suggest ',
+                    $composer . ' run-script post-root-package-install ',
+                    $composer . ' run-script post-install-cmd',
+                    $composer . ' run-script post-create-project-cmd',
+                ];
+                break;
+            default:
+                $commands = [
+                    $composer.' install --no-scripts',
+                    $composer.' run-script post-root-package-install',
+                    $composer.' run-script post-create-project-cmd',
+                    $composer.' run-script post-autoload-dump',
+                ];
+                break;
+        }
+
+        $this->runCommands($this->formatCommands($commands));
     }
 
     /**
